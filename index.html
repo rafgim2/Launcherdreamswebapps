@@ -232,6 +232,10 @@
       display:block;
     }
 
+    body.logged-out-preview .app-lock-msg{
+      display:none !important;
+    }
+
     .hidden{ display:none !important; }
 
     .auth-overlay{
@@ -810,14 +814,16 @@
       state.accessGranted = access.granted;
 
       if (!state.firebaseUser) {
-        authOverlay.classList.remove('hidden');
+        document.body.classList.add('logged-out-preview');
+        authOverlay.classList.add('hidden');
         logoutBtn.classList.add('hidden');
         upgradePanel.classList.add('hidden');
         userBadge.className = 'badge';
-        userBadge.innerHTML = document.body.classList.contains('lang-en') ? 'Signed out' : 'Sin sesión';
+        userBadge.innerHTML = document.body.classList.contains('lang-en') ? 'Explora libremente' : 'Explora libremente';
         planBadge.className = 'badge';
-        planBadge.innerHTML = document.body.classList.contains('lang-en') ? 'Plan: —' : 'Plan: —';
+        planBadge.innerHTML = document.body.classList.contains('lang-en') ? 'Login required to open apps' : 'Hace falta iniciar sesión para abrir apps';
       } else {
+        document.body.classList.remove('logged-out-preview');
         authOverlay.classList.add('hidden');
         logoutBtn.classList.remove('hidden');
         userBadge.className = 'badge';
@@ -845,12 +851,17 @@
         }
       }
 
+      const canOpenDirectly = state.accessGranted;
+
       appCards.forEach((card) => {
-        card.classList.toggle('app-blocked', !state.accessGranted);
+        card.classList.toggle('app-blocked', !!state.firebaseUser && !canOpenDirectly);
       });
 
       openButtons.forEach((btn) => {
-        btn.disabled = !state.accessGranted;
+        // Sin sesión, el botón sigue activo para poder mostrar el login.
+        // Con sesión pero sin acceso (prueba caducada), se mantiene activo también
+        // para poder mostrar el panel de upgrade.
+        btn.disabled = false;
       });
     }
 
@@ -932,6 +943,7 @@
       btn.addEventListener('click', () => {
         if (!state.accessGranted) {
           authOverlay.classList.remove('hidden');
+          showLoginMode('login');
           if (state.profile && getAccessState(state.profile).reason === 'trial-expired') {
             upgradePanel.scrollIntoView({ behavior:'smooth', block:'center' });
           }
@@ -945,12 +957,15 @@
     onAuthStateChanged(auth, async (firebaseUser) => {
       state.firebaseUser = firebaseUser || null;
       state.profile = null;
-      renderAccess();
 
       if (!firebaseUser) {
+        authOverlay.classList.add('hidden');
         showLoginMode('login');
+        renderAccess();
         return;
       }
+
+      renderAccess();
 
       try {
         state.profile = await ensureUserProfile(firebaseUser);
